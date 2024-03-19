@@ -12,6 +12,8 @@ class MyApp extends StatelessWidget {
   final Future<FirebaseApp> _initialization = Firebase.initializeApp();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -43,6 +45,8 @@ class MyApp extends StatelessWidget {
 
 class SignInPage extends StatelessWidget {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  SignInPage({super.key});
 
   @override
   Widget build(BuildContext context) {
