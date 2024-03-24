@@ -1,118 +1,96 @@
-import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:helloworld/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  runApp(MyApp());
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final Future<FirebaseApp> _initialization = Firebase.initializeApp();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  MyApp({super.key});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Firebase Auth',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: FutureBuilder(
-        future: _initialization,
-        builder: (BuildContext context, AsyncSnapshot<FirebaseApp> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const CircularProgressIndicator();
-          } else {
-            if (snapshot.hasError) {
-              return const Text('Error initializing Firebase');
-            } else {
-              if (_auth.currentUser != null) {
-                return HomePage(user: _auth.currentUser!);
-              } else {
-                return SignInPage();
-              }
-            }
-          }
-        },
-      ),
+    return const MaterialApp(
+      title: 'Favorite Car',
+      home: MyHomePage(),
     );
   }
 }
 
-class SignInPage extends StatelessWidget {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  SignInPage({super.key});
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sign In'),
-      ),
-      body: Center(
-        child: ElevatedButton(
-          child: const Text('Sign In'),
-          onPressed: () async {
-            UserCredential? userCredential;
-            try {
-              userCredential = await _auth.signInWithEmailAndPassword(
-                email: 'example@example.com',
-                password: 'password',
-              );
-            } catch (e) {
-              print(e.toString());
-            }
-
-            if (userCredential != null) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => HomePage(user: userCredential!.user!),
-                ),
-              );
-            }
-          },
-        ),
-      ),
-    );
+  _MyHomePageState createState() {
+    return _MyHomePageState();
   }
 }
 
-class HomePage extends StatelessWidget {
-  final User user;
-
-  const HomePage({Key? key, required this.user}) : super(key: key);
-
+class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('Welcome, ${user.email}'),
-            const SizedBox(height: 16.0),
-            ElevatedButton(
-              child: const Text('Sign Out'),
-              onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => SignInPage()),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+      appBar: AppBar(title: const Text('Favorite Car Votes')),
+      body: _buildBody(context),
     );
   }
+
+  Widget _buildBody(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('cars').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const LinearProgressIndicator();
+        return _buildList(context, snapshot.data!.docs);
+      },
+    );
+  }
+
+  Widget _buildList(BuildContext context, List<DocumentSnapshot> snapshot) {
+    return ListView(
+      padding: const EdgeInsets.only(top: 20.0),
+      children: snapshot.map((data) => _buildListItem(context, data)).toList(),
+    );
+  }
+
+  Widget _buildListItem(BuildContext context, DocumentSnapshot data) {
+    final record = Record.fromSnapshot(data);
+    return Padding(
+        key: ValueKey(record.name),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey),
+            borderRadius: BorderRadius.circular(5.0),
+          ),
+          child: ListTile(
+              title: Text(record.name),
+              trailing: Text(record.votes.toString()),
+              onTap: () =>
+                  record.reference.update({'votes': FieldValue.increment(1)})),
+        ));
+  }
+}
+
+class Record {
+  final String name;
+  final int votes;
+  final DocumentReference reference;
+
+  Record.fromMap(Map<String, dynamic> map, {required this.reference})
+      : assert(map['name'] != null),
+        assert(map['votes'] != null),
+        name = map['name'],
+        votes = map['votes'];
+  Record.fromSnapshot(DocumentSnapshot snapshot)
+      : this.fromMap(snapshot.data()! as Map<String, dynamic>,
+            reference: snapshot.reference);
+
+  @override
+  String toString() => "Record<$name:$votes>";
 }
